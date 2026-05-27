@@ -502,6 +502,7 @@ function App() {
             />
           )}
           {activeSection === "Security" && <SecurityView />}
+          {activeSection === "About" && <AboutView />}
         </main>
 
         <aside className="border-l border-line bg-[#0c111d] p-5 max-[1180px]:col-span-2 max-[900px]:col-span-1 max-[900px]:border-l-0 max-[900px]:border-t">
@@ -560,7 +561,6 @@ function SidebarContent({
           [ShieldCheck, "Security"],
           [Info, "About"],
         ].map(([Icon, label]) => {
-                    {activeSection === "About" && <AboutView />}
           const active = activeSection === label;
           return (
             <button
