@@ -958,13 +958,54 @@ function formatSavedDate(value) {
 
 function SqlPanel({ response, loading }) {
   const sql = response?.sql || "";
+  const [copied, setCopied] = React.useState(false);
+  const timeoutRef = React.useRef(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleCopy = async () => {
+    if (!sql) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(sql);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = sql;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // swallow — clipboard may be unavailable in some environments
+      console.error("Copy failed", err);
+    }
+  };
+
   return (
-    <div className="rounded-lg border border-line bg-panel p-4">
+    <div className={`rounded-lg border p-4 ${copied ? "border-emerald/40 bg-emerald/5" : "border-line bg-panel"}`}>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="font-semibold">Generated SQL</h3>
-        <button disabled={!sql} onClick={() => navigator.clipboard?.writeText(sql)} className="rounded-md border border-line p-2 text-slate-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40">
-          <Copy size={16} />
-        </button>
+        <div className="flex items-center gap-2">
+          <div aria-live="polite" className="sr-only">{copied ? "Copied to clipboard" : ""}</div>
+          <button
+            disabled={!sql}
+            onClick={handleCopy}
+            title={copied ? "Copied" : "Copy SQL to clipboard"}
+            className={`rounded-md border p-2 ${sql ? (copied ? "border-emerald text-emerald-300 bg-emerald/10" : "border-line text-slate-300 hover:text-white") : "border-line text-slate-500 disabled:cursor-not-allowed disabled:opacity-40"}`}
+          >
+            {copied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+          </button>
+        </div>
       </div>
       <pre className="min-h-[178px] overflow-auto rounded-md bg-[#060914] p-4 text-sm leading-6 text-slate-200 font-mono">
         <code>{loading ? "Generating safe SQL..." : sql}</code>
