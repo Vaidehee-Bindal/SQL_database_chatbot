@@ -56,12 +56,7 @@ const examples = [
   "Orders from last 7 days",
   "Customers with highest orders",
 ];
-          [Sparkles, "Chat"],
-          [History, "History"],
-          [FileText, "Saved Queries"],
-          [Database, "Datasets"],
-          [ShieldCheck, "Security"],
-          [Info, "About"],
+;
 
 function isDateLikeValue(value) {
   if (typeof value !== "string") return false;
@@ -563,7 +558,9 @@ function SidebarContent({
           [FileText, "Saved Queries"],
           [Database, "Datasets"],
           [ShieldCheck, "Security"],
+          [Info, "About"],
         ].map(([Icon, label]) => {
+                    {activeSection === "About" && <AboutView />}
           const active = activeSection === label;
           return (
             <button
