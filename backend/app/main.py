@@ -5,14 +5,36 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import execute_query, fetch_schema, format_schema_for_prompt
-from app.groq_client import generate_sql
-from app.models import ChatResponse, ConnectionRequest, HistoryItem, LoginRequest, LoginResponse, QueryRequest, SavedConnection, SavedConnectionRequest, SelectTablesRequest, TableInfo
+from app.error_explainer import explain_sql_error_locally
+from app.groq_client import explain_error, generate_sql
+from app.models import ChatResponse, ConnectionRequest, HistoryItem, LoginRequest, LoginResponse, QueryRequest, SavedConnection, SavedConnectionRequest, SelectTablesRequest, TableInfo, VisualizationHint
 # from app.auth import login, register_user, save_connection, get_connection, list_connections, delete_connection, verify_token
-from app.sql_validator import validate_select_sql
+from app.sql_validator import validate_exact_table_mentions, validate_requested_schema_terms, validate_select_sql
 
 app = FastAPI(title="SQL Database Chatbot API", version="0.1.0")
 settings = get_settings()
 history: list[HistoryItem] = []
+
+
+def verify_token(token: str) -> str | None:
+    # Auth is currently optional in this branch; keep chat/query running even if auth helpers are not wired.
+    return None
+
+
+def settings_for_database_url(database_url: str | None):
+    if not database_url:
+        return settings
+    from app.config import Settings
+
+    return Settings(
+        GROQ_API_KEY=settings.groq_api_key,
+        GROQ_MODEL=settings.groq_model,
+        SUPABASE_DATABASE_URL=database_url,
+        QUERY_ROW_LIMIT=settings.query_row_limit,
+        QUERY_TIMEOUT_SECONDS=settings.query_timeout_seconds,
+        ALLOWED_SCHEMAS=settings.allowed_schemas,
+        FRONTEND_ORIGIN=settings.frontend_origin,
+    )
 
 
 def get_current_user(authorization: str | None) -> str:
@@ -108,12 +130,7 @@ def health() -> dict[str, str | bool]:
 @app.post("/test-connection", response_model=dict[str, bool])
 def test_connection(request: ConnectionRequest) -> dict[str, bool]:
     try:
-        # Create a temporary settings object with the provided URL
-        from app.config import Settings
-        temp_settings = Settings(GROQ_API_KEY=settings.groq_api_key, SUPABASE_DATABASE_URL=request.database_url)
-        temp_settings.require_database()
-        # Try to connect and fetch schema
-        fetch_schema(temp_settings)
+        fetch_schema(settings_for_database_url(request.database_url))
         return {"connected": True}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -122,9 +139,7 @@ def test_connection(request: ConnectionRequest) -> dict[str, bool]:
 @app.post("/get-tables", response_model=list[TableInfo])
 def get_tables(request: ConnectionRequest) -> list[TableInfo]:
     try:
-        from app.config import Settings
-        temp_settings = Settings(GROQ_API_KEY=settings.groq_api_key, SUPABASE_DATABASE_URL=request.database_url)
-        return fetch_schema(temp_settings)
+        return fetch_schema(settings_for_database_url(request.database_url))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -145,48 +160,105 @@ def query_history() -> list[HistoryItem]:
 @app.post("/chat/query", response_model=ChatResponse)
 async def chat_query(request: QueryRequest) -> ChatResponse:
     try:
-        # Use provided database URL or fall back to settings
-        from app.config import Settings
-        # Connection management is disabled for now
-        query_settings = settings
-        
+        query_settings = settings_for_database_url(request.database_url)
         tables = fetch_schema(query_settings)
-        
-        # Filter tables if selected_tables is provided
+
         if request.selected_tables:
             tables = [t for t in tables if f"{t.schema_name}.{t.table_name}" in request.selected_tables]
-        
-        generation = await generate_sql(query_settings, request.question, format_schema_for_prompt(tables))
-        validation = validate_select_sql(generation["sql"], query_settings.query_row_limit)
-        if not validation.valid or not validation.executable_sql or not validation.normalized_sql:
-            raise HTTPException(status_code=400, detail=validation.reason or "Generated SQL was rejected.")
+        schema_context = format_schema_for_prompt(tables)
 
-        columns, rows, elapsed_ms = execute_query(query_settings, validation.executable_sql)
-        created_at = datetime.now(timezone.utc)
-        response = ChatResponse(
-            question=request.question,
-            sql=validation.normalized_sql,
-            executable_sql=validation.executable_sql,
-            explanation=generation["explanation"],
-            assumptions=[str(item) for item in generation["assumptions"]],
-            validation=validation,
-            columns=columns,
-            rows=rows,
-            row_count=len(rows),
-            elapsed_ms=elapsed_ms,
-            created_at=created_at,
-        )
-        history.append(
-            HistoryItem(
+        table_names = [table.table_name for table in tables]
+        query_validation = validate_exact_table_mentions(request.question, table_names)
+        if not query_validation.valid:
+            return ChatResponse(
                 question=request.question,
-                sql=response.sql,
-                row_count=response.row_count,
-                elapsed_ms=response.elapsed_ms,
+                error=query_validation.reason or "Use the exact table name.",
+                error_explanation=query_validation.reason or "Use the exact table name.",
+                validation=query_validation,
+                created_at=datetime.now(timezone.utc),
+            )
+
+        schema_term_validation = validate_requested_schema_terms(request.question, tables)
+        if not schema_term_validation.valid:
+            return ChatResponse(
+                question=request.question,
+                error=schema_term_validation.reason or "The query asks for a column that does not exist in the selected schema.",
+                error_explanation=schema_term_validation.reason or "The query asks for a column that does not exist in the selected schema.",
+                validation=schema_term_validation,
+                created_at=datetime.now(timezone.utc),
+            )
+
+        # Let the model interpret the natural-language question against the live schema.
+        # We only enforce SQL safety after generation so unfamiliar schemas can still work.
+        generation = await generate_sql(query_settings, request.question, schema_context)
+        validation = validate_select_sql(generation["sql"], query_settings.query_row_limit)
+        
+        if not validation.valid or not validation.executable_sql or not validation.normalized_sql:
+            # If SQL is invalid, try to explain why (if we have SQL)
+            error_explanation = None
+            if generation.get("sql"):
+                error_explanation = await explain_error(
+                    query_settings, 
+                    validation.reason or "SQL validation failed", 
+                    generation["sql"], 
+                    schema_context
+                )
+            return ChatResponse(
+                question=request.question,
+                sql=generation.get("sql"),
+                explanation=generation.get("explanation"),
+                error=validation.reason or "Invalid SQL generated",
+                error_explanation=error_explanation,
+                validation=validation,
+                created_at=datetime.now(timezone.utc)
+            )
+
+        try:
+            columns, rows, elapsed_ms = execute_query(query_settings, validation.executable_sql)
+            created_at = datetime.now(timezone.utc)
+            response = ChatResponse(
+                question=request.question,
+                sql=validation.normalized_sql,
+                executable_sql=validation.executable_sql,
+                explanation=generation["explanation"],
+                assumptions=[str(item) for item in generation["assumptions"]],
+                validation=validation,
+                columns=columns,
+                rows=rows,
+                row_count=len(rows),
+                elapsed_ms=elapsed_ms,
+                visualization=VisualizationHint(**generation["visualization"]),
                 created_at=created_at,
             )
-        )
-        return response
-    except HTTPException:
-        raise
+            history.append(
+                HistoryItem(
+                    question=request.question,
+                    sql=response.sql,
+                    row_count=response.row_count,
+                    elapsed_ms=response.elapsed_ms,
+                    created_at=created_at,
+                )
+            )
+            return response
+        except Exception as query_exc:
+            # Handle runtime SQL errors
+            error_explanation = explain_sql_error_locally(str(query_exc), tables)
+            if not error_explanation:
+                error_explanation = await explain_error(
+                    query_settings,
+                    str(query_exc),
+                    validation.executable_sql,
+                    schema_context
+                )
+            return ChatResponse(
+                question=request.question,
+                sql=validation.normalized_sql,
+                executable_sql=validation.executable_sql,
+                explanation=generation["explanation"],
+                error=str(query_exc),
+                error_explanation=error_explanation,
+                validation=validation,
+                created_at=datetime.now(timezone.utc)
+            )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

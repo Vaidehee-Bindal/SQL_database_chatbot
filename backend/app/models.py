@@ -41,6 +41,7 @@ class SelectTablesRequest(BaseModel):
 class QueryRequest(BaseModel):
     question: str = Field(min_length=2, max_length=1000)
     connection_id: str | None = None  # Use saved connection instead of URL
+    database_url: str | None = Field(default=None, min_length=10)
     selected_tables: list[str] = Field(default_factory=list)
 
 
@@ -73,17 +74,27 @@ class TableInfo(BaseModel):
     foreign_keys: list[ForeignKeyInfo] = Field(default_factory=list)
 
 
+class VisualizationHint(BaseModel):
+    type: str  # "bar", "pie", "line", "table"
+    x_axis: str | None = None
+    y_axis: str | None = None
+    title: str | None = None
+
+
 class ChatResponse(BaseModel):
     question: str
-    sql: str
-    executable_sql: str
-    explanation: str
+    sql: str | None = None
+    executable_sql: str | None = None
+    explanation: str | None = None
+    error: str | None = None
+    error_explanation: str | None = None
     assumptions: list[str] = []
-    validation: ValidationResult
-    columns: list[str]
-    rows: list[dict[str, Any]]
-    row_count: int
-    elapsed_ms: int
+    validation: ValidationResult | None = None
+    columns: list[str] = []
+    rows: list[dict[str, Any]] = []
+    row_count: int = 0
+    elapsed_ms: int = 0
+    visualization: VisualizationHint | None = None
     created_at: datetime
 
 
