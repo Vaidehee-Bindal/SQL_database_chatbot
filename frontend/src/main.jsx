@@ -10,6 +10,7 @@ import {
   Copy,
   Database,
   FileText,
+  Info,
   History,
   LineChart,
   Loader2,
@@ -55,11 +56,12 @@ const examples = [
   "Orders from last 7 days",
   "Customers with highest orders",
 ];
-
-function isNumericValue(value) {
-  if (value === null || value === undefined || value === "") return false;
-  return Number.isFinite(Number(value));
-}
+          [Sparkles, "Chat"],
+          [History, "History"],
+          [FileText, "Saved Queries"],
+          [Database, "Datasets"],
+          [ShieldCheck, "Security"],
+          [Info, "About"],
 
 function isDateLikeValue(value) {
   if (typeof value !== "string") return false;
@@ -594,6 +596,49 @@ function SidebarContent({
           Change connection
         </button>
       </div>
+    </>
+  );
+}
+
+function AboutView() {
+  return (
+    <>
+      <SectionHeader title="About" description="What this SQL Chatbot does and why it exists." />
+      <section className="rounded-lg border border-line bg-panel p-4">
+        <h3 className="mb-2 text-lg font-semibold">Overview</h3>
+        <p className="mb-4 text-sm text-slate-300">
+          This SQL Chatbot helps you query a Postgres (Supabase) database using natural language. It
+          translates your questions into safe, SELECT-only SQL, executes them against a demo or your
+          Supabase Transaction Pooler URL, and returns results with optional visualizations.
+        </p>
+
+        <h4 className="mt-3 mb-2 text-sm font-semibold">Key Features</h4>
+        <ul className="mb-4 ml-5 list-disc text-sm text-slate-300">
+          <li>Natural language → safe SQL generation with SELECT-only validation.</li>
+          <li>Demo database for quick exploration, or connect your own Supabase Transaction Pooler URL.</li>
+          <li>Result visualization (table, bar, line, pie) with automatic inference.</li>
+          <li>Query history, saved queries, and easy copy-to-clipboard for generated SQL.</li>
+        </ul>
+
+        <h4 className="mt-3 mb-2 text-sm font-semibold">Security</h4>
+        <p className="mb-2 text-sm text-slate-300">
+          The application is designed with security in mind:
+        </p>
+        <ul className="mb-4 ml-5 list-disc text-sm text-slate-300">
+          <li>All SQL executed by the backend is validated to be SELECT-only (no DML or schema changes).</li>
+          <li>Your Supabase credentials are not stored in the browser; the Transaction Pooler URL is kept
+              in-memory for the session only and sent to the backend solely to fetch schema and run queries.</li>
+          <li>Row limits and single-statement enforcement reduce risk of accidental large scans or modifications.</li>
+          <li>Server-side secrets (Groq and Supabase keys) remain in backend/.env and are never exposed to the client.</li>
+        </ul>
+
+        <h4 className="mt-3 mb-2 text-sm font-semibold">Why this tool is helpful</h4>
+        <p className="text-sm text-slate-300">
+          This tool lowers the barrier to explore databases by letting non-SQL users ask questions in plain English,
+          while still giving developers fast access to generated SQL they can copy and reuse. It accelerates data
+          exploration, prototyping, and reporting without exposing direct write access to your database.
+        </p>
+      </section>
     </>
   );
 }
