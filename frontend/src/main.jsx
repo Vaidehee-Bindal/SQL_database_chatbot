@@ -40,7 +40,7 @@ import {
 } from "recharts";
 import "./styles.css";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_URL = import.meta.env.VITE_API_URL;
 
 const CHART_COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4"];
 const CHART_TYPES = new Set(["bar", "line", "pie"]);
@@ -272,12 +272,12 @@ function App() {
       setIsConnecting(true);
       try {
         const res = connection.mode === "custom"
-          ? await fetch(`${API_BASE}/get-tables`, {
+          ? await fetch(`${API_URL}/get-tables`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ database_url: connection.databaseUrl }),
             })
-          : await fetch(`${API_BASE}/schema`);
+          : await fetch(`${API_URL}/schema`);
         if (!res.ok) throw new Error("Failed to load schema from backend.");
         const schemaData = await res.json();
         setSchema(schemaData);
@@ -304,7 +304,7 @@ function App() {
     setIsConnecting(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/get-tables`, {
+      const res = await fetch(`${API_URL}/get-tables`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ database_url: databaseUrl }),
@@ -340,7 +340,7 @@ function App() {
     setError("");
     setResponse(null);
     try {
-      const res = await fetch(`${API_BASE}/chat/query`, {
+      const res = await fetch(`${API_URL}/chat/query`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
