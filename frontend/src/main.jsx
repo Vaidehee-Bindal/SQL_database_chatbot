@@ -657,13 +657,13 @@ function ConnectScreen({ onDemo, onConnect, loading }) {
             </div>
 
             <form onSubmit={submitConnection} className="space-y-3">
-              <label className="block text-sm font-medium text-slate-200">Enter your Supabase database URL</label>
+              <label className="block text-sm font-medium text-slate-200">Enter your Supabase Transaction Pooler URL here (Ensure RLS is disabled)</label>
               <textarea
-                value={databaseUrl}
-                onChange={(event) => setDatabaseUrl(event.target.value)}
-                placeholder="postgresql://postgres.project-ref:your_password@aws-0-region.pooler.supabase.com:6543/postgres?sslmode=require"
-                className="min-h-[118px] w-full resize-none rounded-md border border-line bg-[#0b1020] p-3 text-sm leading-6 text-slate-100 outline-none ring-violet/40 placeholder:text-slate-600 focus:ring-2"
-              />
+                  value={databaseUrl}
+                  onChange={(event) => setDatabaseUrl(event.target.value)}
+                  placeholder="postgresql://USERNAME.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require"
+                  className="min-h-[118px] w-full resize-none rounded-md border border-line bg-[#0b1020] p-3 text-sm leading-6 text-slate-100 outline-none ring-violet/40 placeholder:text-slate-600 focus:ring-2"
+                />
               {error && (
                 <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
                   <AlertTriangle className="mt-0.5 shrink-0" size={16} />
