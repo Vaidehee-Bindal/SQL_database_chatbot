@@ -1,74 +1,169 @@
 # SQL Database Chatbot
 
-Dark-mode SQL chatbot MVP with a FastAPI backend, Groq-powered SQL generation, Supabase/PostgreSQL schema grounding, SELECT-only validation, and a React dashboard UI.
+A secure, safety-first assistant that converts natural-language questions into validated, read-only SQL queries, executes them against a database, and returns human-friendly results and explanations.
 
-## Project Structure
+## Live Demo 
+Try it here - https://sql-database-chatbot.vercel.app/
 
-```text
-backend/   FastAPI API, Groq client, Postgres execution, SQL safety tests
-frontend/  React + Vite + Tailwind dashboard
+## Overview
+
+This repository contains a small full-stack demo that demonstrates how to expose safe, read-only database querying via natural-language prompts.
+
+- Backend: FastAPI service with SQL validation, execution helpers, and error explanation components.
+- Frontend: Vite + React single-page UI for asking questions and viewing results.
+- DB helper: `setup_readonly_user.sql` shows how to create a restricted read-only role.
+
+## Features
+
+- Natural-language → SQL generation (pluggable/replaceable component)
+- Read-only execution enforced by validator + DB role
+- SQL validation and sanitization to block DDL/DML and multiple statements
+- Human-friendly error explanations for database errors
+- Minimal, auditable codebase and unit tests for critical paths
+
+## Architecture & Workflow
+
+```mermaid
+flowchart TD
+  U[User] -->|asks question| F[Frontend]
+  F -->|POST /query| A[Backend API]
+  A --> G[NL→SQL generator]
+  G --> V[SQL Validator]
+  V -->|valid| DB[DB (read-only)]
+  V -->|invalid| R[Reject + Explain]
+  DB --> R2[Result Formatter]
+  R2 --> E[Error Explainer / Natural language]
+  E --> F
+  R --> F
 ```
 
-## Setup
+## Project structure
 
-Install backend dependencies:
+Top-level layout:
 
-```powershell
-& 'C:\Users\vaide\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pip install -r backend\requirements.txt
+```
+README.md
+setup_readonly_user.sql
+backend/
+  requirements.txt
+  app/
+    __init__.py
+    auth.py
+    config.py
+    database.py
+    error_explainer.py
+    groq_client.py
+    main.py
+    models.py
+    sql_validator.py
+tests/
+  test_config.py
+  test_error_explainer.py
+  test_sql_validator.py
+frontend/
+  index.html
+  package.json
+  postcss.config.js
+  tailwind.config.js
+  vite.config.js
+  scripts/
+    dev-server.mjs
+  src/
+    main.jsx
+    styles.css
 ```
 
-Install frontend dependencies:
+## Project Structure Explaination
 
-```powershell
+| Path | Purpose |
+|------|---------|
+| README.md | Project overview, setup, and usage (this file). |
+| setup_readonly_user.sql | SQL script to create a read-only DB user and permissions. |
+| backend/requirements.txt | Python dependencies for the backend. |
+| backend/app/__init__.py | Package initialization. |
+| backend/app/auth.py | Authentication helpers (if used). |
+| backend/app/config.py | Environment/config handling (DB strings, timeouts). |
+| backend/app/database.py | DB connection helpers and execution wrapper. |
+| backend/app/error_explainer.py | Convert DB errors into human-readable messages. |
+| backend/app/groq_client.py | External NL→SQL model client (if present). |
+| backend/app/main.py | FastAPI app and route handlers. |
+| backend/app/models.py | Pydantic request/response schemas. |
+| backend/app/sql_validator.py | Core SQL validation and sanitization logic. |
+| tests/*.py | Unit tests for backend components. |
+| frontend/index.html | Frontend entry HTML. |
+| frontend/package.json | Frontend dependencies and scripts. |
+| frontend/src/main.jsx | React entry point and UI wiring. |
+| frontend/src/styles.css | Global styles and Tailwind imports. |
+
+## Security
+
+- Use the provided `setup_readonly_user.sql` to create a database user with only read privileges.
+- Validator blocks: non-SELECT statements, multiple statements, comments, and dangerous keywords (DROP, DELETE, UPDATE, INSERT, ALTER, etc.).
+- Store secrets and DB credentials server-side and use environment variables (do not commit secrets).
+- Keep query logs minimal and redact PII before persistence.
+
+## Quick start
+
+Clone and install:
+
+```bash
+git clone https://github.com/Vaidehee-Bindal/SQL_database_chatbot.git
+cd SQL_database_chatbot
+
+# Backend
+python -m venv .venv
+# Windows PowerShell activate: .venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+pip install -r backend/requirements.txt
+
+# Frontend (separate terminal)
 cd frontend
 npm install
 ```
 
-## Environment
+Run locally:
 
-Create `backend/.env` from `backend/.env.example` and add your real values:
+```bash
+# start backend from repo root
+uvicorn backend.app.main:app --reload
+
+# start frontend (from frontend/)
+npm run dev
+```
+
+Open the frontend at `http://localhost:5174` (Vite default) or the address printed by `npm run dev`.
+
+## Environment variables
+
+Create `backend/.env` (or set env vars) with the values your deployment needs. Common vars:
 
 ```env
-GROQ_API_KEY=your_groq_api_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
-SUPABASE_DATABASE_URL=postgresql://postgres.project-ref:password@aws-0-region.pooler.supabase.com:6543/postgres?sslmode=require
+GROQ_API_KEY=
+GROQ_MODEL=
+SUPABASE_DATABASE_URL=
 QUERY_ROW_LIMIT=1000
 QUERY_TIMEOUT_SECONDS=15
 FRONTEND_ORIGIN=http://localhost:5174
 ALLOWED_SCHEMAS=public
 ```
 
-Use Supabase's pooled PostgreSQL connection string from Project Settings. Keep `?sslmode=require` at the end. If your password has special characters like `@`, `#`, `%`, or `/`, URL-encode the password before pasting it.
+Notes:
+- Prefer a read-only DB role in production.
+- URL-encode special characters in connection passwords.
+- `SUPABASE_DATABASE_URL` is used in this project when targeting Supabase; `DATABASE_URL` is also supported.
 
-For production, use a read-only Supabase/PostgreSQL role. The app also blocks non-SELECT SQL, multiple statements, comments, and dangerous DML/DDL keywords before execution.
+## Tests
 
-`DATABASE_URL` is still supported, but `SUPABASE_DATABASE_URL` is preferred for this project.
+Run backend tests:
 
-By default the chatbot only introspects the `public` schema so Supabase internal schemas such as `auth` are not sent to Groq. To allow more schemas, set `ALLOWED_SCHEMAS=public,analytics`.
-
-## Run
-
-Start the backend:
-
-```powershell
-cd backend
-& 'C:\Users\vaide\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```bash
+pytest -q
 ```
 
-Start the frontend:
+## Contributing
 
-```powershell
-cd frontend
-npm run dev
-```
+- Open issues or PRs with clear descriptions and tests for new behaviors.
+- Keep secrets out of commits and add tests for validation rules you change.
 
-Open `http://127.0.0.1:5174`.
 
-## Verify
 
-```powershell
-$env:PYTHONPATH='backend'
-& 'C:\Users\vaide\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest backend\tests -q
-cd frontend
-npm run build
-```
