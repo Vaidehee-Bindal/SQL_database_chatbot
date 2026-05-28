@@ -5,6 +5,9 @@ A secure, safety-first assistant that converts natural-language questions into v
 ## Live Demo 
 Try it here - https://sql-database-chatbot.vercel.app/
 
+## Video Demo
+https://github.com/user-attachments/assets/ff530eae-0bb7-4ed1-b8eb-65411a0c35aa
+
 ## Overview
 
 This repository contains a full-stack AI-powered SQL chatbot that enables users to interact with PostgreSQL and Supabase databases using natural language queries. The application converts human-readable questions into safe SQL statements, validates them against strict security rules, executes only read-only queries, and returns formatted results along with clear explanations.
