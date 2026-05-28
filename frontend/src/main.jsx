@@ -41,7 +41,7 @@ import {
 } from "recharts";
 import "./styles.css";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8001";
 
 const CHART_COLORS = ["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4"];
 const CHART_TYPES = new Set(["bar", "line", "pie"]);
@@ -58,11 +58,35 @@ const examples = [
 ];
 ;
 
+async function readApiJson(response) {
+  const contentType = response.headers.get("content-type") || "";
+  const bodyText = await response.text();
+
+  if (!contentType.includes("application/json")) {
+    throw new Error(`Backend did not return JSON. Check that the API is running at ${API_URL}.`);
+  }
+
+  const data = JSON.parse(bodyText);
+  if (!response.ok) {
+    throw new Error(data.detail || data.error || response.statusText || "Backend request failed.");
+  }
+  return data;
+}
+
 function isDateLikeValue(value) {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (!trimmed) return false;
   return !Number.isNaN(Date.parse(trimmed)) && /[-/:T]/.test(trimmed);
+}
+
+function isNumericValue(value) {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value === "bigint") return true;
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return !Number.isNaN(Number(trimmed));
 }
 
 function isIdentifierLikeKey(key) {
@@ -275,8 +299,7 @@ function App() {
               body: JSON.stringify({ database_url: connection.databaseUrl }),
             })
           : await fetch(`${API_URL}/schema`);
-        if (!res.ok) throw new Error("Failed to load schema from backend.");
-        const schemaData = await res.json();
+        const schemaData = await readApiJson(res);
         setSchema(schemaData);
         setSelectedTables(schemaData.map(t => `${t.schema_name}.${t.table_name}`));
       } catch (err) {
@@ -306,8 +329,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ database_url: databaseUrl }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Could not connect to Supabase.");
+      const data = await readApiJson(res);
       setResponse(null);
       setHistory([]);
       setSchema(data);
@@ -346,7 +368,7 @@ function App() {
           selected_tables: selectedTables,
         }),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       const normalizedData = { ...data, visualization: inferVisualization(data) };
       setResponse(normalizedData);
       
