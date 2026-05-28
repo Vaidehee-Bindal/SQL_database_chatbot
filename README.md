@@ -29,45 +29,17 @@ The application supports both:
 
 ## Tech Stack
 
-### Frontend
-
-* React.js
-* Vite
-* Tailwind CSS
-* JavaScript
-* Axios
-
-### Backend
-
-* FastAPI
-* Python
-* SQLAlchemy
-* Psycopg2
-
-### AI & Query Generation
-
-* Groq API
-* LLM-based SQL generation
-
-### Database
-
-* PostgreSQL
-* Supabase
-
-### Security & Validation
-
-* Custom SQL validation layer
-* Read-only database roles
-* Query sanitization and safety checks
-
-### Testing
-
-* Pytest
-
-### Deployment
-
-* Vercel (Frontend)
-* Render (Backend)
+| Layer | Technologies Used |
+|---|---|
+| Frontend | React, Vite, Tailwind CSS, JavaScript |
+| Backend | FastAPI, Python, Uvicorn, SQLAlchemy, Psycopg2 |
+| AI Integration | Groq API, LLM-based SQL Generation |
+| Database | PostgreSQL, Supabase |
+| Security & Validation | Custom SQL Validator, Read-Only Database Roles, Query Sanitization |
+| API Communication | Axios, REST APIs |
+| Testing | Pytest |
+| Deployment | Vercel, Render |
+| Tooling | npm, pip, Git, GitHub |
 
 ### Backend
 
